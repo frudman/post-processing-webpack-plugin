@@ -1,0 +1,24 @@
+{
+  "name": "post-processing-webpack-plugin",
+  "version": "1.0.1",
+  "description": "webpack plugin used to generate or transform built assets",
+  "main": "post-processing-webpack-plugin.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/frudman/post-processing-webpack-plugin.git"
+  },
+  "keywords": [
+    "webpack",
+    "plugin",
+    "post-processing"
+  ],
+  "author": "Frederic Rudman",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/frudman/post-processing-webpack-plugin/issues"
+  },
+  "homepage": "https://github.com/frudman/post-processing-webpack-plugin#readme"
+}

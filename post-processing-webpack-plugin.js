@@ -40,6 +40,7 @@ class WebpackPostProcessingPlugin {
                         const origSrc = compilation.assets[filename].source(); // save original
                         const cumulative = { [filename]: origSrc }; // cumulative **by file names** so can be multiple streams of post-processing
                         this.postProcessors.forEach(postProcess => {
+                            log('processing asset', postProcess);
                             const nextResult = postProcess(origSrc, cumulative, filename);
                             if (typeof nextResult === 'string') {
                                 compilation.assets[filename] = new concatSrc(cumulative[filename] = nextResult);
