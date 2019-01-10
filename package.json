@@ -1,6 +1,6 @@
 {
   "name": "post-processing-webpack-plugin",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "webpack plugin used to generate or transform built assets",
   "main": "post-processing-webpack-plugin.js",
   "scripts": {
