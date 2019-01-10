@@ -1,29 +1,55 @@
 'use strict'
 
-// READ THIS: https://webpack.js.org/concepts/
+// For Webpack 4+ only
 
-const log = console.log.bind(console); // for convenience
+// READ: https://webpack.js.org/concepts/
+// also: https://webpack.js.org/contribute/writing-a-plugin/
+// also: https://webpack.js.org/contribute/plugin-patterns/
 
-const { ConcatSource: concatSrc } = require("webpack-sources"); // see: https://github.com/webpack/webpack-sources
+// fyi: can also be an object: { name: 'your plugin name', context: true/false };
+const PLUGIN = 'A Webpack Post Production Plugin'; // string is ok, we don't need context
+
+// shorthand
+const log = console.log.bind(console); 
+
+// helpers (for apply() below)
+const tapX = (X, name, cb) => X.hooks[name].tap(PLUGIN, cb);
+const tapAsyncX = (X, name, cb) => X.hooks[name].tapAsync(PLUGIN, cb);
+
+// read: https://github.com/webpack/webpack-sources
+const { ConcatSource: concatSrc } = require("webpack-sources"); 
 
 //export default 
 class WebpackPostProcessingPlugin {
 
-    // from: https://webpack.js.org/contribute/writing-a-plugin/
-    // also: https://webpack.js.org/contribute/plugin-patterns/
-
     constructor(...postProcessors) {
-        this.PLUGIN = 'A Webpack Post Production Plugin'; // fyi: can also be an object: {name: 'your plugin name', context: true/false};
-        this.postProcessors = postProcessors;
+
+        this.postProcessors = postProcessors.map(pp => 
+            (typeof pp === 'function') ? {
+                test() { return true; },
+                process: pp,
+            }
+            : (typeof pp === 'object') ? Object.assign({
+                test() { return true; },
+                process(src) { return src; }
+            }, pp)
+            : { test() { 
+                log('POST-PROCESSOR must be a function or an object (i.e. { test(filename){}, process(original,current,filename){} })\n...so ignoring:', pp)
+                return false; // ignore always
+            } }
+        );
+
+        this.applicable = filepath => this.postProcessors.find(pp => pp.test(filepath));
     }
 
     apply(compiler) {
+        // trivial
+        if (this.postProcessors.length === 0) return;
+
         // for lambdas below
         const self = this; 
 
-        // some helpers
-        const tapX = (X, name, cb) => X.hooks[name].tap(self.PLUGIN, cb);
-        const tapAsyncX = (X, name, cb) => X.hooks[name].tapAsync(self.PLUGIN, cb);
+        // helpers
         const compilerTap = (name, cb) => tapX(compiler, name, cb);
         const compilerTapAsync = (name, cb) => tapAsyncX(compiler, name, cb);
         const chunkInfo = (info, chunk) => log(`${info} CHUNK: id=${chunk.id}; name=${chunk.name}; ${chunk.files.length} file(s):`, chunk.files);
@@ -36,22 +62,29 @@ class WebpackPostProcessingPlugin {
 
             tapAsyncX(compilation, 'optimizeChunkAssets', (chunks, callback) => {
                 chunks.forEach(chunk => {
-                    chunk.files.forEach(filename => {
-                        const origSrc = compilation.assets[filename].source(); // save original
-                        const cumulative = { [filename]: origSrc }; // cumulative **by file names** so can be multiple streams of post-processing
-                        this.postProcessors.forEach(postProcess => {
-                            const nextResult = postProcess(origSrc, cumulative, filename);
-                            if (typeof nextResult === 'string') {
-                                compilation.assets[filename] = new concatSrc(cumulative[filename] = nextResult);
+                    chunk.files.forEach(filepath => { // full filename relative to dist folder
+
+                        // if none of the processors are applicable for this file...
+                        if (!this.applicable(filepath)) return; // ...short-circuit
+
+                        const origSrc = compilation.assets[filepath].source(); // save original
+                        const cumulative = { [filepath]: origSrc }; // cumulative **by file names** so can be multiple streams of post-processing
+                        this.postProcessors.forEach(pp => {
+
+                            if (!pp.test(filepath)) return; // processor not applicable for this file
+
+                            const nextPass = pp.process(origSrc, cumulative, filepath);
+                            if (typeof nextPass === 'string') {
+                                compilation.assets[filepath] = new concatSrc(cumulative[filepath] = nextPass);
                             }
-                            else if (typeof nextResult === 'object') {
-                                const file = nextResult.filename || filename;
-                                compilation.assets[file] = new concatSrc(cumulative[file] = nextResult.content);
+                            else if (typeof nextPass === 'object') {
+                                const file = nextPass.filepath || filepath;
+                                compilation.assets[file] = new concatSrc(cumulative[file] = nextPass.content);
                             }
                             else
                                 log('whoops: expecting result as a "string" (i.e. modified content)' 
-                                    + ' or as an object (i.e. {[filename:newAssetFileName,] content: modifiedContent})'
-                                    + ' - got neither: ', nextResult);
+                                    + ' or as an object (i.e. {[filepath:newAssetFilepath,] content: modifiedContent})'
+                                    + ' - got neither: ', nextPass);
                         });
                     });
                 });
@@ -63,9 +96,9 @@ class WebpackPostProcessingPlugin {
         // compilerTapAsync('emit', (compilation, callback) => {
         //     compilation.chunks.forEach(chunk => {
         //         chunkInfo('EMITTING', chunk);
-        //         chunk.files.forEach(filename => {
-        //             const genCode = compilation.assets[filename].source().substr(0, 150) + '...';
-        //             log('---GENERATED FILE ' + filename + ':', genCode);
+        //         chunk.files.forEach(filepath => {
+        //             const genCode = compilation.assets[filepath].source().substr(0, 150) + '...';
+        //             log('---GENERATED FILE ' + filepath + ':', genCode);
         //         });
         //     });
 
