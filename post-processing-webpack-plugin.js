@@ -39,6 +39,7 @@ class WebpackPostProcessingPlugin {
             } }
         );
 
+        // helper to shortcircuit processing if none applies to current file
         this.applicable = filepath => this.postProcessors.find(pp => pp.test(filepath));
     }
 
@@ -65,11 +66,11 @@ class WebpackPostProcessingPlugin {
                     chunk.files.forEach(filepath => { // full filename relative to dist folder
 
                         // if none of the processors are applicable for this file...
-                        if (!this.applicable(filepath)) return; // ...short-circuit
+                        if (!self.applicable(filepath)) return; // ...short-circuit
 
                         const origSrc = compilation.assets[filepath].source(); // save original
                         const cumulative = { [filepath]: origSrc }; // cumulative **by file names** so can be multiple streams of post-processing
-                        this.postProcessors.forEach(pp => {
+                        self.postProcessors.forEach(pp => {
 
                             if (!pp.test(filepath)) return; // processor not applicable for this file
 
